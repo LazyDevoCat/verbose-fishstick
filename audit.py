@@ -15,26 +15,43 @@ data = all_data[0]
 containers = data['spec']['template']['spec']['containers']
 apis = data['apiVersion']
 
-for container in containers:
-    name = container.get('name')
-    resources = container.get('resources')
-    print(f"{name}: resources = {resources}")
-    if resources is None:
-        print("Define resources!")
-        continue
-    requests = resources.get('requests')
-    if requests is None:
-        print("Define requests")
-        continue
-    limits = resources.get('limits')
-    if limits is None:
-        print("Define limits")
-        continue
-    else:
-        print("All good")
-        continue
 
-if apis in DEPRECATED_APIS.keys():
-    print(f"Fix {apis}! Because {DEPRECATED_APIS[apis]}")
+def check_requests(containers_spec):
+    findings = []
+    for container in containers_spec:
+        name = container.get('name')
+        resources = container.get('resources')
+        if resources is None:
+            findings.append(f"{name}: no resources block")
+            continue
+        requests = resources.get('requests')
+        if requests is None:
+            findings.append(f"{name}: no requests block but resources are defined")
+            continue
+    return findings
 
 
+def check_limits(containers_spec):
+    findings = []
+    for container in containers_spec:
+        name = container.get('name')
+        resources = container.get('resources')
+        if resources is None:
+            findings.append(f"{name}: no resources block")
+            continue
+        limits = resources.get('limits')
+        if limits is None:
+            findings.append(f"{name}: no limits block but resources are defined")
+            continue
+    return findings
+
+
+def check_api(api_list):
+    if api_list in DEPRECATED_APIS.keys():
+        return f"Fix {api_list}! Because {DEPRECATED_APIS[api_list]}"
+
+
+print(check_requests(containers))
+print(check_limits(containers))
+
+print(check_api(apis))
