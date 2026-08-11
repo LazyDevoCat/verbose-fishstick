@@ -6,14 +6,26 @@ DEPRECATED_APIS = {
     "extensions/v1beta1": "removed in v1.16, use apps/v1",
 }
 
-with open("examples/statefulset-no-resources-deprecated-api.yaml", "r", encoding="utf-8") as f:
+with open("examples/daemonset-no-resources-privileged.yaml", "r", encoding="utf-8") as f:
     data = yaml.safe_load_all(f)
     all_data = list(data)
 
 data = all_data[0]
 
-containers = data['spec']['template']['spec']['containers']
 apis = data['apiVersion']
+kind = data.get('kind')
+
+
+if kind in ("Job", "Deployment", "StatefulSet", "DaemonSet"):
+    containers = data['spec']['template']['spec']['containers']
+elif kind == "CronJob":
+    containers = data['spec']['jobTemplate']['spec']['template']['spec']['containers']
+elif kind == "Pod":
+    containers = data['spec']['containers']
+else:
+    print(f"Unknown!")
+
+
 
 
 def check_requests(containers_spec):
