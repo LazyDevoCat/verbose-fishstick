@@ -1,3 +1,5 @@
+import pathlib
+
 import yaml
 
 DEPRECATED_APIS = {
@@ -6,29 +8,38 @@ DEPRECATED_APIS = {
     "extensions/v1beta1": "removed in v1.16, use apps/v1",
 }
 
-with open("examples/daemonset-no-resources-privileged.yaml", "r", encoding="utf-8") as f:
-    data = yaml.safe_load_all(f)
-    all_data = list(data)
 
-data = all_data[0]
-
-apis = data['apiVersion']
-kind = data.get('kind')
-
-
-if kind in ("Job", "Deployment", "StatefulSet", "DaemonSet"):
-    containers = data['spec']['template']['spec']['containers']
-elif kind == "CronJob":
-    containers = data['spec']['jobTemplate']['spec']['template']['spec']['containers']
-elif kind == "Pod":
-    containers = data['spec']['containers']
-else:
-    print(f"Unknown!")
+def audit_file(path_to_file):
+    with open(path_to_file, "r", encoding="utf-8") as f:
+        data = yaml.safe_load_all(f)
+        all_data = list(data)
+        findings = []
+        data = all_data[0]
+        apis = data['apiVersion']
+        kind = data.get('kind')
+        path = get_path(data, kind)
+        findings.extend(check_resources(path, 'requests'))
+        findings.extend(check_resources(path, 'limits'))
+        api_finding = check_api(apis)
+        if api_finding is not None:
+            findings.append(api_finding)
+        return findings
 
 
+def get_path(manifest, resource_type):
+    if resource_type in ("Job", "Deployment", "StatefulSet", "DaemonSet"):
+        containers = manifest['spec']['template']['spec']['containers']
+    elif resource_type == "CronJob":
+        containers = manifest['spec']['jobTemplate']['spec']['template']['spec']['containers']
+    elif resource_type == "Pod":
+        containers = manifest['spec']['containers']
+    else:
+        containers = []
+        print(f"Unknown! And container will be {containers}")
+    return containers
 
 
-def check_requests(containers_spec):
+def check_resources(containers_spec, field):
     findings = []
     for container in containers_spec:
         name = container.get('name')
@@ -36,24 +47,9 @@ def check_requests(containers_spec):
         if resources is None:
             findings.append(f"{name}: no resources block")
             continue
-        requests = resources.get('requests')
-        if requests is None:
-            findings.append(f"{name}: no requests block but resources are defined")
-            continue
-    return findings
-
-
-def check_limits(containers_spec):
-    findings = []
-    for container in containers_spec:
-        name = container.get('name')
-        resources = container.get('resources')
-        if resources is None:
-            findings.append(f"{name}: no resources block")
-            continue
-        limits = resources.get('limits')
-        if limits is None:
-            findings.append(f"{name}: no limits block but resources are defined")
+        value = resources.get(field)
+        if value is None:
+            findings.append(f"{name}: no {field} block but resources are defined")
             continue
     return findings
 
@@ -61,9 +57,11 @@ def check_limits(containers_spec):
 def check_api(api_list):
     if api_list in DEPRECATED_APIS.keys():
         return f"Fix {api_list}! Because {DEPRECATED_APIS[api_list]}"
+    else:
+        pass
 
 
-print(check_requests(containers))
-print(check_limits(containers))
+# findings = audit_file(pathlib.Path("examples").glob("*.yaml"))
 
-print(check_api(apis))
+findings = audit_file("examples/statefulset-no-resources-deprecated-api.yaml")
+print(findings)
