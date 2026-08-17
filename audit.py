@@ -1,5 +1,4 @@
 import pathlib
-
 import yaml
 
 DEPRECATED_APIS = {
@@ -14,15 +13,15 @@ def audit_file(path_to_file):
         data = yaml.safe_load_all(f)
         all_data = list(data)
         findings = []
-        data = all_data[0]
-        apis = data['apiVersion']
-        kind = data.get('kind')
-        path = get_path(data, kind)
-        findings.extend(check_resources(path, 'requests'))
-        findings.extend(check_resources(path, 'limits'))
-        api_finding = check_api(apis)
-        if api_finding is not None:
-            findings.append(api_finding)
+        for manifest in all_data:
+            apis = manifest.get('apiVersion')
+            kind = manifest.get('kind')
+            path = get_path(manifest, kind)
+            findings.extend(check_resources(path, 'requests'))
+            findings.extend(check_resources(path, 'limits'))
+            api_finding = check_api(apis)
+            if api_finding is not None:
+                findings.append(api_finding)
         return findings
 
 
@@ -55,13 +54,26 @@ def check_resources(containers_spec, field):
 
 
 def check_api(api_list):
-    if api_list in DEPRECATED_APIS.keys():
+    if api_list in DEPRECATED_APIS:
         return f"Fix {api_list}! Because {DEPRECATED_APIS[api_list]}"
-    else:
-        pass
+    return None
 
 
-# findings = audit_file(pathlib.Path("examples").glob("*.yaml"))
+def path_to_files(path):
+    files = []
+    for file in pathlib.Path(path).glob("*.yaml"):
+        files.append(file)
+    for file in pathlib.Path(path).glob("*.yml"):
+        files.append(file)
+    return files
 
-findings = audit_file("examples/statefulset-no-resources-deprecated-api.yaml")
-print(findings)
+
+def checks(path):
+    report = {}
+    for file in path:
+        report[file] = audit_file(file)
+    return report
+
+
+for_check = path_to_files("examples")
+print(checks(for_check))
